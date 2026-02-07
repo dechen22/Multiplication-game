@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>משחק כפל - בחירה ומחיקה</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+            margin-bottom: 20px;
+            direction: rtl;
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            border: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 600;
+            background: white;
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+            transition: all 0.15s;
+        }
+
+        .cell:hover:not(.target) {
+            background: #f8f8f8;
+        }
+
+        .cell.selected {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .cell.deleted::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to bottom right, 
+                transparent calc(50% - 1.5px),
+                #f44336 calc(50% - 1.5px),
+                #f44336 calc(50% + 1.5px),
+                transparent calc(50% + 1.5px));
+            pointer-events: none;
+        }
+
+        .cell.target {
+            background: #e8e8e8;
+            color: #666;
+            font-weight: 700;
+            cursor: default;
+            font-size: 18px;
+        }
+
+        .toggle-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .toggle-buttons {
+            display: inline-flex;
+            background: #f0f0f0;
+            border-radius: 25px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .toggle-btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            background: transparent;
+            color: #666;
+        }
+
+        .toggle-btn.active {
+            background: #4caf50;
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .toggle-btn:not(.active):hover {
+            background: #e0e0e0;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        button.action-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .check-btn {
+            background: #4caf50;
+            color: white;
+        }
+
+        .check-btn:hover {
+            background: #45a049;
+        }
+
+        .new-game-btn {
+            background: white;
+            color: #666;
+            border: 2px solid #ddd;
+        }
+
+        .new-game-btn:hover {
+            background: #f5f5f5;
+        }
+
+        .new-game-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .new-game-btn:disabled:hover {
+            background: white;
+        }
+
+        .message {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: 600;
+            min-height: 30px;
+        }
+
+        .message.success {
+            color: #4caf50;
+        }
+
+        .message.error {
+            color: #f44336;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            .cell {
+                font-size: 18px;
+            }
+
+            .cell.target {
+                font-size: 16px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            .toggle-btn {
+                padding: 8px 20px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 משחק כפל <span id="puzzleCounter" style="font-size: 18px; color: #999; font-weight: normal;"></span></h1>
+        
+        <div class="grid-container" id="grid"></div>
+        
+        <div class="toggle-container">
+            <div class="toggle-buttons">
+                <button class="toggle-btn active" id="selectBtn" onclick="setMode('select')">בחירה</button>
+                <button class="toggle-btn" id="deleteBtn" onclick="setMode('delete')">מחיקה</button>
+            </div>
+        </div>
+        
+        <div class="buttons">
+            <button class="action-btn check-btn" onclick="checkSolution()">בדיקה</button>
+            <button class="action-btn new-game-btn" onclick="nextPuzzle()" id="nextBtn">הבא →</button>
+            <button class="action-btn new-game-btn" onclick="previousPuzzle()" id="prevBtn">← הקודם</button>
+        </div>
+        
+        <div class="message" id="message"></div>
+    </div>
+
+    <script>
+        let allPuzzles = [];
+        let currentPuzzleIndex = 0;
+        let currentMode = 'select'; // 'select' or 'delete'
+        let cellStates = {}; // 'selected', 'deleted', or null
+
+        // יצירת 30 משחקים מראש
+        function generateAllPuzzles() {
+            allPuzzles = [];
+            for (let i = 0; i < 30; i++) {
+                allPuzzles.push(generatePuzzle());
+            }
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('selectBtn').classList.toggle('active', mode === 'select');
+            document.getElementById('deleteBtn').classList.toggle('active', mode === 'delete');
+        }
+
+        function generatePuzzle() {
+            const size = 5;
+            let grid, solution, rowTargets, colTargets;
+            let attempts = 0;
+            const maxAttempts = 100;
+            let allTargets, roundTargetsCount, totalTargets;
+            
+            // ננסה ליצור פאזל עד שנקבל אחד תקין
+            do {
+                grid = Array(size).fill().map(() => Array(size).fill(0));
+                
+                // מילוי הטבלה במספרים 2-7
+                for (let i = 0; i < size; i++) {
+                    for (let j = 0; j < size; j++) {
+                        grid[i][j] = Math.floor(Math.random() * 6) + 2; // 2-7
+                    }
+                }
+                
+                // יצירת פתרון - בחירת תאים אקראיים
+                solution = Array(size).fill().map(() => Array(size).fill(false));
+                
+                // בחירת 2-4 תאים בכל שורה (יותר תאים = מכפלות גדולות יותר)
+                for (let i = 0; i < size; i++) {
+                    const numToSelect = Math.floor(Math.random() * 3) + 2; // 2-4
+                    const indices = [];
+                    while (indices.length < numToSelect) {
+                        const j = Math.floor(Math.random() * size);
+                        if (!indices.includes(j)) {
+                            indices.push(j);
+                            solution[i][j] = true;
+                        }
+                    }
+                }
+                
+                // חישוב יעדי הכפל
+                rowTargets = solution.map((row, i) => 
+                    row.reduce((product, isSelected, j) => 
+                        isSelected ? product * grid[i][j] : product, 1)
+                );
+                
+                colTargets = Array(size).fill(0).map((_, col) => 
+                    solution.reduce((product, row, i) => 
+                        row[col] ? product * grid[i][col] : product, 1)
+                );
+                
+                // בדוק שכל המכפלות מתחת ל-200
+                // וגם שלא יותר מדי מכפלות עגולות (מתחלקות ב-10)
+                allTargets = [...rowTargets, ...colTargets];
+                roundTargetsCount = allTargets.filter(t => t % 10 === 0).length;
+                totalTargets = allTargets.length;
+                
+                attempts++;
+                
+            } while (
+                attempts < maxAttempts && 
+                (rowTargets.some(t => t > 200) || 
+                 colTargets.some(t => t > 200) ||
+                 roundTargetsCount > totalTargets * 0.3) // מקסימום 30% מכפלות עגולות
+            );
+            
+            return {
+                grid,
+                solution,
+                rowTargets,
+                colTargets,
+                size
+            };
+        }
+
+        function renderGrid() {
+            const currentPuzzle = allPuzzles[currentPuzzleIndex];
+            const gridEl = document.getElementById('grid');
+            gridEl.innerHTML = '';
+            gridEl.style.gridTemplateColumns = `repeat(${currentPuzzle.size + 1}, 1fr)`;
+            cellStates = {};
+            
+            // עדכון מונה המשחקים
+            document.getElementById('puzzleCounter').textContent = `(${currentPuzzleIndex + 1}/30)`;
+            
+            // עדכון מצב כפתורים
+            document.getElementById('prevBtn').disabled = currentPuzzleIndex === 0;
+            document.getElementById('nextBtn').disabled = currentPuzzleIndex === 29;
+            
+            // רינדור התאים
+            for (let i = 0; i < currentPuzzle.size; i++) {
+                for (let j = 0; j < currentPuzzle.size; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.textContent = currentPuzzle.grid[i][j];
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.onclick = () => handleCellClick(i, j, cell);
+                    gridEl.appendChild(cell);
+                }
+                
+                // תא יעד של השורה
+                const rowTarget = document.createElement('div');
+                rowTarget.className = 'cell target';
+                rowTarget.textContent = currentPuzzle.rowTargets[i];
+                gridEl.appendChild(rowTarget);
+            }
+            
+            // שורת יעדי העמודות
+            for (let j = 0; j < currentPuzzle.size; j++) {
+                const colTarget = document.createElement('div');
+                colTarget.className = 'cell target';
+                colTarget.textContent = currentPuzzle.colTargets[j];
+                gridEl.appendChild(colTarget);
+            }
+            
+            // תא ריק בפינה
+            const empty = document.createElement('div');
+            empty.className = 'cell';
+            empty.style.background = 'transparent';
+            empty.style.border = 'none';
+            gridEl.appendChild(empty);
+        }
+
+        function nextPuzzle() {
+            if (currentPuzzleIndex < 29) {
+                currentPuzzleIndex++;
+                renderGrid();
+                document.getElementById('message').textContent = '';
+                setMode('select');
+            }
+        }
+
+        function previousPuzzle() {
+            if (currentPuzzleIndex > 0) {
+                currentPuzzleIndex--;
+                renderGrid();
+                document.getElementById('message').textContent = '';
+                setMode('select');
+            }
+        }
+
+        function handleCellClick(row, col, cellElement) {
+            const key = `${row}-${col}`;
+            const currentState = cellStates[key];
+            
+            if (currentMode === 'select') {
+                if (currentState === 'selected') {
+                    // ביטול בחירה
+                    cellStates[key] = null;
+                    cellElement.classList.remove('selected');
+                } else {
+                    // בחירה חדשה
+                    cellStates[key] = 'selected';
+                    cellElement.classList.remove('deleted');
+                    cellElement.classList.add('selected');
+                }
+            } else { // delete mode
+                if (currentState === 'deleted') {
+                    // ביטול מחיקה
+                    cellStates[key] = null;
+                    cellElement.classList.remove('deleted');
+                } else {
+                    // מחיקה חדשה
+                    cellStates[key] = 'deleted';
+                    cellElement.classList.remove('selected');
+                    cellElement.classList.add('deleted');
+                }
+            }
+        }
+
+        function checkSolution() {
+            const currentPuzzle = allPuzzles[currentPuzzleIndex];
+            const size = currentPuzzle.size;
+            
+            // בדיקת כפל השורות
+            for (let i = 0; i < size; i++) {
+                let product = 1;
+                let hasSelected = false;
+                
+                for (let j = 0; j < size; j++) {
+                    const key = `${i}-${j}`;
+                    const state = cellStates[key];
+                    
+                    if (state === 'selected') {
+                        product *= currentPuzzle.grid[i][j];
+                        hasSelected = true;
+                    } else if (state !== 'deleted') {
+                        // תא שלא נגעו בו נחשב כנבחר
+                        product *= currentPuzzle.grid[i][j];
+                        hasSelected = true;
+                    }
+                }
+                
+                if (!hasSelected || product !== currentPuzzle.rowTargets[i]) {
+                    showMessage('❌ יש טעויות בשורות, נסו שוב', 'error');
+                    return;
+                }
+            }
+            
+            // בדיקת כפל העמודות
+            for (let j = 0; j < size; j++) {
+                let product = 1;
+                let hasSelected = false;
+                
+                for (let i = 0; i < size; i++) {
+                    const key = `${i}-${j}`;
+                    const state = cellStates[key];
+                    
+                    if (state === 'selected') {
+                        product *= currentPuzzle.grid[i][j];
+                        hasSelected = true;
+                    } else if (state !== 'deleted') {
+                        // תא שלא נגעו בו נחשב כנבחר
+                        product *= currentPuzzle.grid[i][j];
+                        hasSelected = true;
+                    }
+                }
+                
+                if (!hasSelected || product !== currentPuzzle.colTargets[j]) {
+                    showMessage('❌ יש טעויות בעמודות, נסו שוב', 'error');
+                    return;
+                }
+            }
+            
+            showMessage('🎉 מעולה! פתרתם נכון!', 'success');
+        }
+
+        function showMessage(text, type) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            messageEl.className = `message ${type}`;
+        }
+
+        // התחלת המשחקים
+        generateAllPuzzles();
+        renderGrid();
+    </script>
+</body>
+</html>
